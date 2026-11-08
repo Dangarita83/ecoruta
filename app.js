@@ -287,13 +287,14 @@ function vReportar(v) {
     <label class="campo"><span>Descripción</span><textarea id="rp-desc" maxlength="500" placeholder="Ej.: El camión no pasó el lunes y hay bolsas en la esquina"></textarea><small id="rp-cont">0 / 500</small></label>
     <fieldset class="campo" style="border:0;padding:0;margin:0"><span>Prioridad</span>
       <div class="opciones">${["alta", "media", "baja"].map((p) => `<label class="opcion"><input type="radio" name="prio" value="${p}" ${p === "media" ? "checked" : ""}><span style="flex-direction:column;align-items:flex-start;gap:0">${p[0].toUpperCase() + p.slice(1)}<small class="suave" style="font-weight:400">+${PUNTOS[p]} EcoPuntos</small></span></label>`).join("")}</div></fieldset>
-    <div class="fila">
-      <div class="campo"><span>Foto (opcional)</span>
-        <label class="btn sec" style="cursor:pointer">${ico("camara")}<span id="rp-foto-txt">Tomar o elegir foto</span><input type="file" id="rp-foto" accept="image/*" capture="environment" class="oculto"></label>
-        <img id="rp-prev" class="foto oculto" alt="Vista previa de la foto"></div>
-      <div class="campo"><span>Ubicación (opcional)</span>
-        <button class="btn sec" type="button" id="rp-gps">${ico("gps")}<span id="rp-gps-txt">Agregar mi ubicación</span></button></div>
-    </div>
+    <div class="campo"><span>Ubicación de la novedad</span>
+      <small>Usa el GPS del celular o toca el mapa en el punto exacto.</small>
+      <button class="btn sec" type="button" id="rp-gps">${ico("gps")}<span id="rp-gps-txt">Usar mi ubicación GPS</span></button>
+      <div id="rp-mapa" class="mapa" style="height:280px;border-radius:12px;border:1px solid var(--borde)"></div>
+      <small id="rp-ubic" class="suave">Todavía no has marcado la ubicación.</small></div>
+    <div class="campo"><span>Foto (opcional)</span>
+      <label class="btn sec" style="cursor:pointer">${ico("camara")}<span id="rp-foto-txt">Tomar o elegir foto</span><input type="file" id="rp-foto" accept="image/*" capture="environment" class="oculto"></label>
+      <img id="rp-prev" class="foto oculto" alt="Vista previa de la foto"></div>
     <label class="campo"><span>Comentario adicional (opcional)</span><input id="rp-com" maxlength="300" placeholder="Ej.: Junto al parque"></label>
     <div id="rp-err"></div>
     <button class="btn grande naranja" type="submit">${ico("megafono")}Enviar reporte</button>
@@ -318,13 +319,33 @@ function vReportar(v) {
     };
     img.src = url;
   };
+  // Ubicación obligatoria: GPS del celular o un punto marcado en el mapa
+  const mapaRep = crearMapa($("#rp-mapa"), [7.11, -73.12], 13);
+  let marcador = null;
+  const fijarUbicacion = (lng, lat, origen) => {
+    ubicacion = [Number(lng.toFixed(5)), Number(lat.toFixed(5))];
+    $("#rp-ubic").textContent = `Ubicación marcada ${origen} ✓ (${ubicacion[1]}, ${ubicacion[0]})`;
+    $("#rp-ubic").classList.remove("suave");
+    if (mapaRep) {
+      if (marcador) marcador.remove();
+      marcador = L.circleMarker([lat, lng], { radius: 10, color: "#17352a", weight: 2, fillColor: "#d9822b", fillOpacity: 1 }).addTo(mapaRep);
+      mapaRep.setView([lat, lng], Math.max(mapaRep.getZoom(), 16));
+    }
+  };
+  const centrarEnSector = () => {
+    const s = buscar("sectores", $("#rp-sector").value);
+    if (mapaRep && s && !ubicacion) mapaRep.setView([s.ubicacion.coordinates[1], s.ubicacion.coordinates[0]], 16);
+  };
+  centrarEnSector();
+  $("#rp-sector").addEventListener("change", centrarEnSector);
+  if (mapaRep) mapaRep.on("click", (ev) => fijarUbicacion(ev.latlng.lng, ev.latlng.lat, "en el mapa"));
   $("#rp-gps").onclick = () => {
-    if (!navigator.geolocation) return aviso("Este navegador no permite obtener la ubicación.");
+    if (!navigator.geolocation) return aviso("Este navegador no permite usar el GPS. Toca el mapa para marcar la ubicación.");
     $("#rp-gps-txt").textContent = "Obteniendo ubicación…";
     navigator.geolocation.getCurrentPosition((p) => {
-      ubicacion = [Number(p.coords.longitude.toFixed(5)), Number(p.coords.latitude.toFixed(5))];
-      $("#rp-gps-txt").textContent = `Ubicación agregada ✓`;
-    }, () => { $("#rp-gps-txt").textContent = "Agregar mi ubicación"; aviso("No pudimos obtener tu ubicación. Puedes enviar el reporte sin ella."); }, { timeout: 8000 });
+      $("#rp-gps-txt").textContent = "Usar mi ubicación GPS";
+      fijarUbicacion(p.coords.longitude, p.coords.latitude, "con el GPS");
+    }, () => { $("#rp-gps-txt").textContent = "Usar mi ubicación GPS"; aviso("No pudimos obtener tu ubicación. Toca el mapa para marcarla."); }, { timeout: 8000 });
   };
   $("#f-rep").onsubmit = (e) => {
     e.preventDefault();

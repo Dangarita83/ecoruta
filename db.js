@@ -125,13 +125,14 @@ const OPS = {
     exigir(descripcion.trim().length >= 5, "Describe la novedad (mínimo 5 caracteres).");
     exigir(descripcion.length <= 500, "La descripción admite máximo 500 caracteres.");
     exigir(["alta", "media", "baja"].includes(prioridad), "Elige la prioridad.");
+    exigir(Array.isArray(ubicacion) && ubicacion.length === 2 && ubicacion.every(Number.isFinite), "Agrega la ubicación de la novedad: usa el GPS o toca el mapa en el punto exacto.");
     const empresa = OPS.empresaDelSector(id_sector);
     exigir(empresa, "Este sector todavía no tiene una ruta ni una empresa asignada, así que el reporte no se puede enviar.");
     const ahora = new Date();
     const r = { _id: nuevoId(), id_usuario: usuario._id, id_sector, id_empresa: empresa._id, tipo_novedad,
       descripcion: descripcion.trim(), fecha_hora: ahora, prioridad, estado: "reportado",
       historial_estados: [{ estado: "reportado", fecha_cambio: ahora }] };
-    if (ubicacion) r.ubicacion = { type: "Point", coordinates: ubicacion };
+    r.ubicacion = { type: "Point", coordinates: ubicacion };            // obligatoria
     if (url_foto || comentario) r.evidencia = {};
     if (url_foto) r.evidencia.url_foto = url_foto;
     if (comentario) r.evidencia.comentario = comentario.trim().slice(0, 300);
