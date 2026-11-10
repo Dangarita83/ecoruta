@@ -202,6 +202,7 @@ function tarjetaRuta(r, sectorId) {
     <div class="dias" aria-label="Días: ${r.horarios.map((h) => DIA_TXT[h.dia]).join(", ")}">${DIAS.map((d) => `<span class="dia ${dias.has(d) ? "si" : ""}" title="${DIA_TXT[d]}">${DIA_CORTO[d]}</span>`).join("")}</div>
     <div class="franja">${r.horarios[0].hora_inicio} – ${r.horarios[0].hora_fin}</div>
     ${p ? `<div class="nota verde">Próxima: <b>${p.cuando}</b> a las ${p.h.hora_inicio}</div>` : ""}
+    ${sectorId ? `<button class="btn sec ver-mapa" type="button" data-ver="${sectorId}">${ico("mapa")}Ver en el mapa</button>` : ""}
   </article>`;
 }
 
@@ -221,10 +222,23 @@ function vRutas(v, q) {
     <div class="tarjeta"><div class="tarjeta-cab"><h2>Mapa</h2><span class="meta" id="r-mapa-meta"></span></div><div id="r-mapa" class="mapa alto"></div></div>
   </div>`;
   const mapa = crearMapa($("#r-mapa"));
-  let capa = mapa ? L.layerGroup().addTo(mapa) : null;
+  let capa = mapa ? L.featureGroup().addTo(mapa) : null;
+  let marcadores = {}; // _id del sector -> marcador en el mapa
+  const idSector = (nombre) => DB.sectores.find((y) => y.nombre === nombre)?._id;
+  // Botón "Ver en el mapa": centra el mapa en el barrio de la ruta y abre su información
+  $("#r-res").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ver]");
+    if (!b) return;
+    const mk = marcadores[b.dataset.ver];
+    if (!mapa || !mk) return aviso("El mapa necesita conexión a internet.");
+    mapa.setView(mk.getLatLng(), 16);
+    mk.openPopup();
+    $("#r-mapa").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 
   function porSector(id) {
     const s = buscar("sectores", id);
+    if (!s) return;
     const rutas = DB.rutas.filter((r) => r.activa && r.sectores.includes(id));
     const [lng, lat] = s.ubicacion.coordinates;
     // Consulta 1 desde el barrio elegido: otros sectores con rutas a menos de 1,5 km
@@ -241,15 +255,15 @@ function vRutas(v, q) {
             cerca.filter((x) => x.sector === o.sector).map((x) => tarjetaRuta(DB.rutas.find((r) => r.codigo === x.ruta), DB.sectores.find((y) => y.nombre === x.sector)?._id)).join("")).join("")
         : "");
     if (mapa) {
-      capa.clearLayers();
+      capa.clearLayers(); marcadores = {};
       const circulo = L.circle([lat, lng], { radius: max, color: "#d9822b", weight: 1, fillOpacity: .05 }).addTo(capa);
       // Las rutas se asocian al barrio (no tienen recorrido), así que se rotulan sobre el punto del barrio
       const rotulo = () => ({ permanent: true, direction: "top", offset: [0, -8], className: "rotulo-ruta" });
-      punto(capa, [lng, lat], "#d9822b", `<b>${esc(s.nombre)}</b> (tu barrio)<br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10)
+      marcadores[id] = punto(capa, [lng, lat], "#d9822b", `<b>${esc(s.nombre)}</b> (tu barrio)<br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10)
         .bindTooltip(`<b>${esc(s.nombre)}</b><br>${rutas.map((r) => esc(r.codigo)).join("<br>") || "Sin rutas"}`, rotulo());
-      otros.forEach((o) => punto(capa, o.coordenadas, "#2e7d32", `<b>${esc(o.sector)}</b> · ${num(o.distancia_m)} m`)
+      otros.forEach((o) => marcadores[idSector(o.sector)] = punto(capa, o.coordenadas, "#2e7d32", `<b>${esc(o.sector)}</b> · ${num(o.distancia_m)} m`)
         .bindTooltip(`<b>${esc(o.sector)}</b><br>${cerca.filter((c) => c.sector === o.sector).map((c) => esc(c.ruta)).join("<br>")}`, rotulo()));
-      mapa.fitBounds(circulo.getBounds());
+      mapa.fitBounds(capa.getBounds(), { padding: [30, 30] });
     }
     $("#r-mapa-meta").textContent = `${s.nombre} · Consulta 1 · $geoNear`;
   }
@@ -263,12 +277,12 @@ function vRutas(v, q) {
       sectores.map((s) => `<h3 style="margin:8px 0 0">${esc(s.sector)} <span class="suave" style="font-weight:400;font-size:15px">· ${num(s.distancia_m)} m</span></h3>` +
         res.filter((x) => x.sector === s.sector).map((x) => tarjetaRuta(DB.rutas.find((r) => r.codigo === x.ruta), DB.sectores.find((y) => y.nombre === x.sector)?._id)).join("")).join("");
     if (mapa) {
-      capa.clearLayers();
+      capa.clearLayers(); marcadores = {};
       const circulo = L.circle([lat, lng], { radius: max, color: "#d9822b", weight: 1, fillOpacity: .05 }).addTo(capa);
       punto(capa, [lng, lat], "#d9822b", "Tu ubicación", 9);
-      sectores.forEach((s) => punto(capa, s.coordenadas, "#2e7d32", `<b>${esc(s.sector)}</b> · ${num(s.distancia_m)} m`)
+      sectores.forEach((s) => marcadores[idSector(s.sector)] = punto(capa, s.coordenadas, "#2e7d32", `<b>${esc(s.sector)}</b> · ${num(s.distancia_m)} m`)
         .bindTooltip(`<b>${esc(s.sector)}</b><br>${res.filter((x) => x.sector === s.sector).map((x) => esc(x.ruta)).join("<br>")}`, { permanent: true, direction: "top", offset: [0, -8], className: "rotulo-ruta" }));
-      mapa.fitBounds(circulo.getBounds());
+      mapa.fitBounds(capa.getBounds(), { padding: [30, 30] });
     }
     $("#r-mapa-meta").textContent = "Consulta 1 · $geoNear";
   }

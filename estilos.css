@@ -254,3 +254,4 @@ details.codigo pre { margin: 0; padding: 0 18px 18px; overflow-x: auto; font-siz
 
 /* Rótulo fijo con las rutas de cada barrio en el mapa */
 .leaflet-tooltip.rotulo-ruta{font-family:inherit;font-weight:600;font-size:12px;line-height:1.35;color:#17352a;background:#fff;border:1px solid #c9d6cc;border-radius:8px;padding:4px 8px;box-shadow:0 2px 6px rgba(0,0,0,.12);text-align:center}
+.ver-mapa { margin-top: 10px; min-height: 38px; padding: 7px 14px; font-size: 14px; }
