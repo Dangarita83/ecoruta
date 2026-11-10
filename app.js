@@ -226,15 +226,28 @@ function vRutas(v, q) {
   function porSector(id) {
     const s = buscar("sectores", id);
     const rutas = DB.rutas.filter((r) => r.activa && r.sectores.includes(id));
-    $("#r-res").innerHTML = rutas.length
+    const [lng, lat] = s.ubicacion.coordinates;
+    // Consulta 1 desde el barrio elegido: otros sectores con rutas a menos de 1,5 km
+    let max = 1500, cerca = consulta1({ lng, lat, max }).filter((x) => x.sector !== s.nombre);
+    // Si el barrio no tiene rutas y no hay nada a 1,5 km, se amplía a 5 km (igual que con el GPS)
+    if (!rutas.length && !cerca.length) { max = 5000; cerca = consulta1({ lng, lat, max }).filter((x) => x.sector !== s.nombre); }
+    const otros = [...new Map(cerca.map((x) => [x.sector, x])).values()];
+    $("#r-res").innerHTML = (rutas.length
       ? `<p class="suave" style="margin:0">${rutas.length} ruta${rutas.length > 1 ? "s" : ""} en <b>${esc(s.nombre)}</b> (${esc(s.municipio)})</p>` + rutas.map((r) => tarjetaRuta(r, id)).join("")
-      : `<div class="tarjeta pad"><b>Aún no hay rutas registradas para ${esc(s.nombre)}.</b><p class="suave" style="margin:6px 0 0">Consulta con la empresa de aseo de ${esc(s.municipio)} o revisa un barrio cercano.</p></div>`;
+      : `<div class="tarjeta pad"><b>Aún no hay rutas registradas para ${esc(s.nombre)}.</b><p class="suave" style="margin:6px 0 0">Consulta con la empresa de aseo de ${esc(s.municipio)} o revisa las rutas de los barrios cercanos.</p></div>`) +
+      (otros.length
+        ? `<div class="nota" style="margin-top:6px">Cerca de ${esc(s.nombre)}: ${cerca.length} ruta${cerca.length > 1 ? "s" : ""} en ${otros.length} sector${otros.length > 1 ? "es" : ""} a menos de ${num(max / 1000, 1)} km.</div>` +
+          otros.map((o) => `<h3 style="margin:8px 0 0">${esc(o.sector)} <span class="suave" style="font-weight:400;font-size:15px">· ${num(o.distancia_m)} m</span></h3>` +
+            cerca.filter((x) => x.sector === o.sector).map((x) => tarjetaRuta(DB.rutas.find((r) => r.codigo === x.ruta), DB.sectores.find((y) => y.nombre === x.sector)?._id)).join("")).join("")
+        : "");
     if (mapa) {
       capa.clearLayers();
-      punto(capa, s.ubicacion.coordinates, "#2e7d32", `<b>${esc(s.nombre)}</b><br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10);
-      mapa.setView([s.ubicacion.coordinates[1], s.ubicacion.coordinates[0]], 15);
+      const circulo = L.circle([lat, lng], { radius: max, color: "#d9822b", weight: 1, fillOpacity: .05 }).addTo(capa);
+      punto(capa, [lng, lat], "#d9822b", `<b>${esc(s.nombre)}</b> (tu barrio)<br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10);
+      otros.forEach((o) => punto(capa, o.coordenadas, "#2e7d32", `<b>${esc(o.sector)}</b> · ${num(o.distancia_m)} m`));
+      mapa.fitBounds(circulo.getBounds());
     }
-    $("#r-mapa-meta").textContent = s.nombre;
+    $("#r-mapa-meta").textContent = `${s.nombre} · Consulta 1 · $geoNear`;
   }
 
   // Consulta 1: rutas cercanas a la ubicación ($geoNear + $lookup)
