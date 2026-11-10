@@ -243,8 +243,12 @@ function vRutas(v, q) {
     if (mapa) {
       capa.clearLayers();
       const circulo = L.circle([lat, lng], { radius: max, color: "#d9822b", weight: 1, fillOpacity: .05 }).addTo(capa);
-      punto(capa, [lng, lat], "#d9822b", `<b>${esc(s.nombre)}</b> (tu barrio)<br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10);
-      otros.forEach((o) => punto(capa, o.coordenadas, "#2e7d32", `<b>${esc(o.sector)}</b> · ${num(o.distancia_m)} m`));
+      // Las rutas se asocian al barrio (no tienen recorrido), así que se rotulan sobre el punto del barrio
+      const rotulo = () => ({ permanent: true, direction: "top", offset: [0, -8], className: "rotulo-ruta" });
+      punto(capa, [lng, lat], "#d9822b", `<b>${esc(s.nombre)}</b> (tu barrio)<br>${rutas.map((r) => esc(r.codigo)).join(", ") || "Sin rutas"}`, 10)
+        .bindTooltip(`<b>${esc(s.nombre)}</b><br>${rutas.map((r) => esc(r.codigo)).join("<br>") || "Sin rutas"}`, rotulo());
+      otros.forEach((o) => punto(capa, o.coordenadas, "#2e7d32", `<b>${esc(o.sector)}</b> · ${num(o.distancia_m)} m`)
+        .bindTooltip(`<b>${esc(o.sector)}</b><br>${cerca.filter((c) => c.sector === o.sector).map((c) => esc(c.ruta)).join("<br>")}`, rotulo()));
       mapa.fitBounds(circulo.getBounds());
     }
     $("#r-mapa-meta").textContent = `${s.nombre} · Consulta 1 · $geoNear`;
@@ -262,7 +266,8 @@ function vRutas(v, q) {
       capa.clearLayers();
       const circulo = L.circle([lat, lng], { radius: max, color: "#d9822b", weight: 1, fillOpacity: .05 }).addTo(capa);
       punto(capa, [lng, lat], "#d9822b", "Tu ubicación", 9);
-      sectores.forEach((s) => punto(capa, s.coordenadas, "#2e7d32", `<b>${esc(s.sector)}</b> · ${num(s.distancia_m)} m`));
+      sectores.forEach((s) => punto(capa, s.coordenadas, "#2e7d32", `<b>${esc(s.sector)}</b> · ${num(s.distancia_m)} m`)
+        .bindTooltip(`<b>${esc(s.sector)}</b><br>${res.filter((x) => x.sector === s.sector).map((x) => esc(x.ruta)).join("<br>")}`, { permanent: true, direction: "top", offset: [0, -8], className: "rotulo-ruta" }));
       mapa.fitBounds(circulo.getBounds());
     }
     $("#r-mapa-meta").textContent = "Consulta 1 · $geoNear";
